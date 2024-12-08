@@ -8,6 +8,8 @@
     "serve": "vite preview"
   },
   "dependencies": {
+    "@cloudinary/url-gen": "^1.21.0",
+    "@cloudinary/vue": "^1.13.0",
     "@prisma/client": "^5.8.0",
     "axios": "^1.6.0",
     "hono": "^3.12.0",

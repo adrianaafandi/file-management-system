@@ -2,20 +2,42 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { handle } from "hono/vercel";
 import { prisma } from "../../../../lib/prisma";
+import path from "path";
+import { writeFile } from "fs/promises";
+import { existsSync, mkdirSync } from "fs";
+import fs from 'fs/promises';
+import mime from 'mime-types';
 
 const app = new Hono().basePath("/api/files");
 
-// Create a new file
 app.post("/", async (c) => {
   try {
-    const { name, path, size, type } = await c.req.json();
-    
+    //check
+    const uploadsDir = path.join(process.cwd(), "uploads");
+    if (!existsSync(uploadsDir)) {
+      mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    const formData = await c.req.formData();
+    const file = formData.get("file");
+
+    if (!file || !(file instanceof File)) {
+      throw new HTTPException(400, { message: "No file uploaded" });
+    }
+
+    const originalName = file.name;
+    const filePath = path.join(uploadsDir, originalName);
+
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    await writeFile(filePath, buffer);
+
     const uploadFile = await prisma.file.create({
       data: {
-        name,
-        path,
-        size,
-        type,
+        name: originalName,
+        path: `/uploads/${originalName}`,
+        size: file.size,
+        type: file.type || 'application/octet-stream'
       }
     });
 
@@ -29,7 +51,6 @@ app.post("/", async (c) => {
   }
 });
 
-// Get all files
 app.get("/", async (c) => {
   try {
     const files = await prisma.file.findMany({
@@ -46,30 +67,68 @@ app.get("/", async (c) => {
   }
 });
 
-// Get a single file by ID
-app.get("/:id", async (c) => {
+app.get('/content/:fileName', async (c) => {
+  const fileName = c.req.param('fileName');
+  const filePath = path.resolve('uploads', fileName);
+
   try {
-    const id = c.req.param('id');
-    
-    const file = await prisma.file.findUnique({
-      where: { id }
-    });
+    const contentType = mime.lookup(filePath) || 'application/octet-stream';
+    const fileContent = contentType.startsWith('text/')
+      ? await fs.readFile(filePath, 'utf-8')
+      : `data:${contentType};base64,${(await fs.readFile(filePath)).toString('base64')}`;
 
-    if (!file) {
-      throw new HTTPException(404, { message: "File not found" });
-    }
-
-    return c.json({
-      message: "File retrieved successfully",
-      data: file
-    });
+    return c.json({ content: fileContent, type: contentType });
   } catch (error) {
-    console.error("Fetch file error:", error);
-    throw new HTTPException(500, { message: "Internal Server Error" });
+    throw new HTTPException(404, { message: 'File not found.' });
   }
 });
 
-// Update a file
+app.get("/uploads/:fileName", async (c) => {
+  try {
+    const fileName = c.req.param("fileName");
+    const filePath = path.join(process.cwd(), "uploads", fileName);
+
+    if (!existsSync(filePath)) {
+      throw new HTTPException(404, { message: "File not found" });
+    }
+
+    const fileContent = await fs.readFile(filePath);
+    const mimeType = mime.lookup(filePath) || "application/octet-stream";
+    c.res.headers.set("Content-Disposition", `attachment; filename="${fileName}"`);
+    c.res.headers.set("Content-Type", mimeType);
+
+    return c.body(fileContent);
+  } catch (error) {
+    console.error("File serving error:", error);
+    throw new HTTPException(404, { message: "File not found" });
+  }
+});
+
+app.get('/download/:fileName', async (c) => {
+  try {
+    const fileName = c.req.param('fileName');
+    const filePath = path.join(process.cwd(), 'uploads', fileName);
+
+    // Check if file exists
+    if (!existsSync(filePath)) {
+      throw new HTTPException(404, { message: 'File not found.' });
+    }
+
+    const mimeType = mime.lookup(filePath) || 'application/octet-stream';
+
+    const fileBuffer = await fs.readFile(filePath);
+
+    c.res.headers.set('Content-Disposition', `attachment; filename="${fileName}"`);
+    c.res.headers.set('Content-Type', mimeType);
+
+    return c.body(fileBuffer);
+  } catch (error) {
+    console.error('Download error:', error);
+    throw new HTTPException(500, { message: 'Failed to download file.' });
+  }
+});
+
+
 app.put("/:id", async (c) => {
   try {
     const id = c.req.param('id');
@@ -80,8 +139,6 @@ app.put("/:id", async (c) => {
       data: {
         name,
         path,
-        size,
-        type,
       }
     });
 
@@ -95,7 +152,7 @@ app.put("/:id", async (c) => {
   }
 });
 
-// Delete a file
+
 app.delete("/:id", async (c) => {
   try {
     const id = c.req.param('id');

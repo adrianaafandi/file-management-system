@@ -1,32 +1,16 @@
 <template>
     <div class="file-list">
-      <div class="file-list-controls">
-        <input 
-          v-model="searchQuery" 
-          placeholder="Search files..." 
-          class="search-input"
-        />
-        <select v-model="sortBy" class="sort-select">
-          <option value="name">Sort by Name</option>
-          <option value="size">Sort by Size</option>
-          <option value="createdAt">Sort by Date</option>
-        </select>
-      </div>
-  
-      <!-- Loading State -->
       <div v-if="loading" class="loading-spinner">
         Loading files...
       </div>
   
-      <!-- Error State -->
       <div v-else-if="error" class="error-message">
         {{ error }}
         <button @click="fetchFiles" class="retry-btn">Retry</button>
       </div>
   
-      <!-- Files Table -->
       <template v-else>
-        <table v-if="filteredAndSortedFiles.length" class="files-table">
+        <table v-if="files.length" class="files-table">
           <thead>
             <tr>
               <th>Name</th>
@@ -37,7 +21,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="file in filteredAndSortedFiles" :key="file.id">
+            <tr v-for="file in files" :key="file.id">
               <td>
                 <div class="file-name-container">
                   <span class="file-icon">{{ getFileIcon(file.type) }}</span>
@@ -49,19 +33,22 @@
               <td>{{ formatDate(file.createdAt) }}</td>
               <td>
                 <div class="action-buttons">
-                  <button 
-                    @click="previewFile(file)" 
-                    class="preview-btn"
-                    :disabled="!canPreviewFile(file)"
-                  >
-                    Preview
-                  </button>
-                  <button 
-                    @click="deleteFile(file.id)" 
-                    class="delete-btn"
-                  >
-                    Delete
-                  </button>
+                  <button
+                      v-if="isPreviewable(file.type)"
+                      @click="viewFileContent(file.name)"
+                      class="preview-btn"
+                    >
+                      View
+                    </button>
+                    <button
+                      v-else
+                      @click="downloadFile(file.name)"
+                      class="download-btn"
+                    >
+                      Download
+                    </button>
+                  <button @click="deleteFile(file.id)" class="delete-btn"> Delete</button>
+                  <button @click="editFile(file)" class="edit-btn">Edit</button>
                 </div>
               </td>
             </tr>
@@ -70,35 +57,51 @@
         <p v-else class="no-files-message">No files found.</p>
       </template>
   
-      <!-- File Preview Modal -->
-      <FilePreviewModal 
-        :file="fileToPreview" 
-        :isVisible="isModalVisible" 
-        :fileUrl="fileUrl" 
-        :fileContent="fileContent" 
-        @close="isModalVisible = false"
-      />
+      <div v-if="isEditModalVisible" class="modal">
+      <div class="modal-content">
+        <h3>Edit File</h3>
+        <form @submit.prevent="updateFile">
+          <label for="name">File Name:</label>
+          <input v-model="editFileData.name" type="text" id="name" />
+
+          <label for="name">File Path:</label>
+          <input v-model="editFileData.path" type="text" id="path" />
+
+          <div class="modal-actions">
+            <button type="submit" class="save-btn">Save</button>
+            <button type="button" @click="closeEditModal" class="cancel-btn">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div v-if="isFileContentModalVisible" class="modal">
+      <div class="modal-content">
+        <button @click="isFileContentModalVisible = false" class="close-btn">×</button>
+        <FileContentViewer 
+          v-if="selectedFile" 
+          :fileName="selectedFile"
+          @error="handleContentError"
+        />
+      </div>
+    </div>
     </div>
   </template>
   
   
   <script setup>
-  import { ref, computed, onMounted } from 'vue';
+  import { ref, onMounted } from 'vue';
   import axios from 'axios';
-  import FilePreviewModal from './FilePreviewModal.vue'; // Import the modal component
+  import FileContentViewer from './FileContentViewer.vue';
   
-  // Reactive state
   const files = ref([]);
-  const searchQuery = ref('');
-  const sortBy = ref('createdAt');
   const loading = ref(true);
   const error = ref(null);
-  const isModalVisible = ref(false);
-  const fileToPreview = ref(null);
-  const fileUrl = ref('');
-  const fileContent = ref('');
+  const isEditModalVisible = ref(false);
+  const editFileData = ref({ name: '', path: ''});
+  const selectedFile = ref(null);
+  const isFileContentModalVisible = ref(false);
   
-  // Fetch files method with improved error handling
+  // Fetch files method
   const fetchFiles = async () => {
     try {
       loading.value = true;
@@ -112,27 +115,69 @@
       loading.value = false;
     }
   };
-  
-  // Computed property for filtering and sorting
-  const filteredAndSortedFiles = computed(() => {
-    return files.value
-      .filter(file => 
-        file.name.toLowerCase().includes(searchQuery.value.toLowerCase())
-      )
-      .sort((a, b) => {
-        switch(sortBy.value) {
-          case 'name':
-            return a.name.localeCompare(b.name);
-          case 'size':
-            return a.size - b.size;
-          case 'createdAt':
-          default:
-            return new Date(b.createdAt) - new Date(a.createdAt);
+
+      const viewFileContent = (fileName) => {
+      console.log("Selected file name:", fileName);
+      selectedFile.value = fileName;
+      isFileContentModalVisible.value = true;
+    };
+
+    const handleContentError = (error) => {
+      console.error('File content error:', error);
+    };
+
+    const editFile = (file) => {
+    editFileData.value = { ...file }; 
+    isEditModalVisible.value = true;
+    };
+
+    const closeEditModal = () => {
+      isEditModalVisible.value = false;
+    };
+
+    const updateFile = async () => {
+      try {
+        const response = await axios.put(`/files/${editFileData.value.id}`, editFileData.value);
+        const updatedFile = response.data.data;
+        const index = files.value.findIndex(file => file.id === updatedFile.id);
+        if (index !== -1) {
+          files.value[index] = updatedFile;
         }
+        closeEditModal();
+      } catch (err) {
+        error.value = 'Failed to update file';
+        console.error('Update file error:', err);
+      }
+    };
+
+    const downloadFile = async (fileName) => {
+    try {
+      const response = await axios.get(`/files/download/${fileName}`, {
+        responseType: 'blob',
       });
-  });
-  
-  // Utility methods
+
+    const url = URL.createObjectURL(response.data);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error('File download error:', err);
+        alert('Failed to download file.');
+      }
+    };
+
+  const deleteFile = async (fileId) => {
+    try {
+      await axios.delete(`/files/${fileId}`);
+      files.value = files.value.filter(file => file.id !== fileId);
+    } catch (err) {
+      error.value = 'Failed to delete file';
+      console.error('Delete file error:', err);
+    }
+  };
+
   const formatFileSize = (bytes) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -150,37 +195,7 @@
       minute: '2-digit'
     });
   };
-  
-  // File actions
-  const previewFile = async (file) => {
-    if (!canPreviewFile(file)) return;
-  
-    fileToPreview.value = file;
-    if (file.type.startsWith('image/') || file.type === 'application/pdf') {
-      fileUrl.value = `/files/${file.id}`;
-      isModalVisible.value = true;
-    } else if (file.type.startsWith('text/')) {
-      try {
-        const response = await axios.get(`/files/${file.id}`, { responseType: 'text' });
-        fileContent.value = response.data;
-        isModalVisible.value = true;
-      } catch (err) {
-        console.error('Error fetching file content:', err);
-      }
-    }
-  };
-  
-  const deleteFile = async (fileId) => {
-    try {
-      await axios.delete(`/files/${fileId}`);
-      files.value = files.value.filter(file => file.id !== fileId);
-    } catch (err) {
-      error.value = 'Failed to delete file';
-      console.error('Delete file error:', err);
-    }
-  };
-  
-  // Helper methods
+
   const getFileIcon = (fileType) => {
     const iconMap = {
       'image/': '📷',
@@ -197,23 +212,82 @@
     return '📄'; // default icon
   };
   
-  const canPreviewFile = (file) => {
-    const previewableTypes = [
-      'image/', 
-      'application/pdf', 
-      'text/'
-    ];
-    return previewableTypes.some(type => file.type.startsWith(type));
+  const isPreviewable = (fileType) => {
+  // Define previewable file types
+  return fileType.startsWith('image/') || fileType.startsWith('text/');
   };
-  
-  // Lifecycle hook
+
+
   onMounted(fetchFiles);
-  
-  // Expose methods for parent component
+
   defineExpose({ fetchFiles });
   </script>
   
   <style scoped>
+  .modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+
+  .modal-content {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  max-width: 80%;
+  max-height: 80%;
+  overflow: auto;
+  position: relative;
+}
+
+
+.close-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+
+  .modal h3 {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+
+  /* Form Inputs */
+  .modal-content form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .modal-content label {
+    font-size: 14px;
+    font-weight: bold;
+  }
+
+  .modal-content input {
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+  }
+
+  .modal-actions {
+    display: flex;
+    justify-content: space-between;
+  }
+
   .file-list-controls {
     display: flex;
     justify-content: space-between;
@@ -252,16 +326,39 @@
     display: flex;
     gap: 10px;
   }
-  
-  .preview-btn, 
-  .delete-btn {
-    padding: 5px 10px;
+
+  .download-btn {
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 10px;
+  cursor: pointer;
+}
+
+.download-btn:hover {
+  background-color: #45a049;
+}
+  .delete-btn,
+  .edit-btn,
+  .save-btn,
+  .cancel-btn {
+    padding: 10px 10px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .preview-btn {
+    padding: 10px 30px;
     border: none;
     border-radius: 4px;
     cursor: pointer;
   }
   
-  .preview-btn {
+  
+  .preview-btn,
+  .save-btn {
     background-color: #4CAF50;
     color: white;
   }
@@ -271,8 +368,14 @@
     cursor: not-allowed;
   }
   
-  .delete-btn {
+  .delete-btn,
+  .cancel-btn {
     background-color: #ff4d4d;
+    color: white;
+  }
+
+  .edit-btn {
+    background-color: #4d8eff;
     color: white;
   }
   

@@ -16,8 +16,10 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, defineEmits } from 'vue'
 import axios from 'axios'
+
+const emit = defineEmits(['fileUploaded'])
 
 const selectedFile = ref(null)
 const uploadError = ref(null)
@@ -36,16 +38,17 @@ const uploadFile = async () => {
   formData.append('file', selectedFile.value)
 
   try {
-    const response = await axios.post('/files', {
-      name: selectedFile.value.name,
-      path: `/uploads/${selectedFile.value.name}`,
-      size: selectedFile.value.size,
-      type: selectedFile.value.type
+    const response = await axios.post('/files', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
     })
 
     console.log('File uploaded successfully:', response.data)
     selectedFile.value = null
     uploadError.value = null
+
+    emit('fileUploaded')
   } catch (error) {
     console.error('File upload failed:', error)
     uploadError.value = error.message

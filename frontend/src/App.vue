@@ -25,9 +25,8 @@ import FileList from './components/FileList.vue';
 const fileListRef = ref(null)
 
 const refreshFileList = () => {
-  // If you want to implement a method to refresh files after upload
   if (fileListRef.value) {
-    fileListRef.value.fetchFiles()
+    fileListRef.value.fetchFiles() // Refresh the file list
   }
 }
 </script>
