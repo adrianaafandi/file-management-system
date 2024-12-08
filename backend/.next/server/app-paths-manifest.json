@@ -1,4 +1,3 @@
 {
-  "/api/files/[[...route]]/route": "app/api/files/[[...route]]/route.js",
-  "/_not-found/page": "app/_not-found/page.js"
+  "/api/files/[[...route]]/route": "app/api/files/[[...route]]/route.js"
 }
