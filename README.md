@@ -25,7 +25,6 @@ Backend:
 Framework: Hono (API routing)
 Database: MongoDB (via Prisma ORM)
 
-# SERVERREREEFWE
+# SERVER
 Access the frontend at http://localhost:5173 (default Vite dev server port).
 Ensure the backend server is running at http://localhost:3000 (or the port you've configured).
-Use the web interface to log in and manage your files.
