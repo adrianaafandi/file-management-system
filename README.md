@@ -25,16 +25,23 @@ Make sure you have the following installed:
 # Installation and Setup
 Clone the repository and install dependencies
 
-Backend:
-
 Install dependencies:
 ```bash
-  git clone https://github.com/adrianaafandi/file-management-system.git
-  cd file-management-system
-  cd backend
-  npm install
+git clone https://github.com/adrianaafandi/file-management-system.git
+cd file-management-system
 ```
 
+Frontend: 
+```bash
+cd frontend
+npm install
+```
+
+Backend:
+```bash
+cd backend
+npm install
+```
 ### Environment Variables
 
 1. Create a `.env` file in the `backend` directory.
@@ -55,21 +62,6 @@ Push the Prisma schema to the database:
 ```bash
   npx prisma db push
 ```
-
-Start the backend server:
-```bash
-npm run dev
-```
-The backend server runs at http://localhost:3000 (default port).
-
-Frontend: 
-```bash
-cd frontend
-npm install
-npm run dev
-```
-The frontend server runs at http://localhost:5173 (default port).
-
 
 ### Running the Project
 To run the project, open two terminals:
