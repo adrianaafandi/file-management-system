@@ -23,13 +23,15 @@ Make sure you have the following installed:
 ---
 
 # Installation and Setup
-Clone the repository and install dependencies
 
-Install dependencies:
+Clone the repository:
 ```bash
 git clone https://github.com/adrianaafandi/file-management-system.git
 cd file-management-system
 ```
+
+
+Install dependencies:
 
 Frontend: 
 ```bash
@@ -50,17 +52,17 @@ npm install
 ```env
 DATABASE_URL="your-mongodb-connection-string"
 ```
-Replace your-mongodb-connection-string with your MongoDB URI.
+Replace your-mongodb-connection-string with your MongoDB URL.
 
 
 Generate Prisma client:
 ```bash
-  npx prisma generate
+npx prisma generate
 ```
 
 Push the Prisma schema to the database:
 ```bash
-  npx prisma db push
+npx prisma db push
 ```
 
 ### Running the Project
